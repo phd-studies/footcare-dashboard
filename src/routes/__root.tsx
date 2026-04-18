@@ -2,6 +2,7 @@ import { Outlet, createRootRoute, HeadContent, Scripts } from "@tanstack/react-r
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/lib/theme";
 import { ClerkProvider } from "@/lib/auth";
+import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -39,6 +40,7 @@ function RootComponent() {
     <ClerkProvider>
       <ThemeProvider>
         <Outlet />
+        <Toaster />
       </ThemeProvider>
     </ClerkProvider>
   );
