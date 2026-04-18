@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { BentoCard } from "./BentoCard";
-import { Clock, Trash2 } from "lucide-react";
-import { deleteTimelineEntry, getTimeline, symptomColor } from "@/services/api";
+import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { getTimeline, symptomColor } from "@/services/api";
+import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type Entry = { id: string; date: string; thumb: string; symptoms: string[]; note?: string };
 
@@ -19,17 +21,31 @@ const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 export function ClinicalTimelineCard({ extraEntries = [] as Entry[] }) {
+  const { user } = useUser();
   const [entries, setEntries] = useState<Entry[]>([]);
-  useEffect(() => { getTimeline().then(setEntries); }, []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getTimeline(user.id)
+      .then((data) => { if (!cancelled) setEntries(data); })
+      .catch((err) => {
+        if (cancelled) return;
+        const msg = err?.message ?? "Could not load history.";
+        setError(msg);
+        toast.error("Failed to load history", { description: msg });
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const all = [...extraEntries, ...entries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
-
-  const remove = async (id: string) => {
-    setEntries((c) => c.filter((e) => e.id !== id));
-    await deleteTimelineEntry(id);
-  };
 
   return (
     <BentoCard
@@ -37,45 +53,48 @@ export function ClinicalTimelineCard({ extraEntries = [] as Entry[] }) {
       subtitle="Past daily check-ins"
       icon={<Clock className="h-5 w-5" />}
     >
-      <ol className="max-h-[520px] overflow-y-auto pr-1 space-y-3">
-        {all.map((e) => (
-          <li
-            key={e.id}
-            className="flex gap-3 p-3 rounded-2xl bg-secondary/50 hover:bg-secondary transition-colors"
-          >
-            <img src={e.thumb} alt="" className="h-16 w-16 rounded-xl object-cover flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin mb-2" />
+          <p className="text-sm">Loading history…</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <AlertCircle className="h-6 w-6 mb-2 text-destructive" />
+          <p className="text-sm">{error}</p>
+        </div>
+      ) : (
+        <ol className="max-h-[520px] overflow-y-auto pr-1 space-y-3">
+          {all.map((e) => (
+            <li
+              key={e.id}
+              className="flex gap-3 p-3 rounded-2xl bg-secondary/50 hover:bg-secondary transition-colors"
+            >
+              <img src={e.thumb} alt="" className="h-16 w-16 rounded-xl object-cover flex-shrink-0" />
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{fmt(e.date)}</p>
-                <button
-                  onClick={() => remove(e.id)}
-                  aria-label="Delete entry"
-                  className="h-9 w-9 inline-flex items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {e.note && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{e.note}</p>}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {e.symptoms.map((s) => (
+                    <span
+                      key={s}
+                      className={cn(
+                        "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium",
+                        colorClass[symptomColor(s)],
+                      )}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
               </div>
-              {e.note && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{e.note}</p>}
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {e.symptoms.map((s) => (
-                  <span
-                    key={s}
-                    className={cn(
-                      "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium",
-                      colorClass[symptomColor(s)],
-                    )}
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </li>
-        ))}
-        {all.length === 0 && (
-          <li className="text-sm text-muted-foreground text-center py-8">No entries yet.</li>
-        )}
-      </ol>
+            </li>
+          ))}
+          {all.length === 0 && (
+            <li className="text-sm text-muted-foreground text-center py-8">No entries yet.</li>
+          )}
+        </ol>
+      )}
     </BentoCard>
   );
 }

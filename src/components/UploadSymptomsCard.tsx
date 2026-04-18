@@ -1,14 +1,17 @@
 import { useRef, useState } from "react";
 import { BentoCard } from "./BentoCard";
-import { Camera, Upload, Check } from "lucide-react";
+import { Camera, Upload, Check, Loader2 } from "lucide-react";
 import { uploadWoundPhoto } from "@/services/api";
+import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const SYMPTOMS = ["Redness", "Swelling", "Pain", "Discharge", "Odor", "Numbness"];
 
 interface Props { onUploaded?: (entry: any) => void }
 
 export function UploadSymptomsCard({ onUploaded }: Props) {
+  const { user } = useUser();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -26,12 +29,28 @@ export function UploadSymptomsCard({ onUploaded }: Props) {
     setActive((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   const submit = async () => {
+    if (!file) {
+      toast.error("Please select a wound photo first.");
+      return;
+    }
+    if (!user?.id) {
+      toast.error("You must be signed in to upload.");
+      return;
+    }
     setBusy(true);
-    const entry = await uploadWoundPhoto({ file, symptoms: active });
-    setBusy(false);
-    setDone(true);
-    onUploaded?.(entry);
-    setTimeout(() => setDone(false), 2200);
+    try {
+      const entry = await uploadWoundPhoto({ file, symptoms: active, userId: user.id });
+      setDone(true);
+      onUploaded?.(entry);
+      toast.success("Check-in saved");
+      setFile(null);
+      setPreview(null);
+      setTimeout(() => setDone(false), 2200);
+    } catch (err: any) {
+      toast.error("Upload failed", { description: err?.message ?? "Please try again." });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -96,7 +115,13 @@ export function UploadSymptomsCard({ onUploaded }: Props) {
         disabled={busy}
         className="mt-5 w-full min-h-[48px] rounded-2xl bg-primary text-primary-foreground font-semibold transition hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2"
       >
-        {done ? <><Check className="h-5 w-5" /> Saved</> : busy ? "Uploading…" : "Upload Photo"}
+        {done ? (
+          <><Check className="h-5 w-5" /> Saved</>
+        ) : busy ? (
+          <><Loader2 className="h-5 w-5 animate-spin" /> Uploading…</>
+        ) : (
+          "Upload Photo"
+        )}
       </button>
     </BentoCard>
   );
