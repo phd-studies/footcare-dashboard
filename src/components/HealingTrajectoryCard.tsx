@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { BentoCard } from "./BentoCard";
 import { TrendingDown } from "lucide-react";
 import { getTrajectory } from "@/services/api";
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, defs as _,
-} from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 
 type Pt = { day: number; date: string; sizeCm2: number };
 
@@ -55,7 +53,7 @@ export function HealingTrajectoryCard() {
                 fontSize: 12,
               }}
               labelStyle={{ color: "var(--color-muted-foreground)" }}
-              formatter={(v: number) => [`${v} cm²`, "Size"]}
+              formatter={(v: any) => [`${v} cm²`, "Size"]}
               labelFormatter={(l) => `Day ${l}`}
             />
             <Area
